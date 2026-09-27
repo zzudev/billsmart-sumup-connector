@@ -1,0 +1,32 @@
+# Identifiants et secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+config/secrets/
+
+# Environnements virtuels Python
+.venv/
+venv/
+env/
+
+# Fichiers temporaires Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Fichiers temporaires et journaux
+*.log
+*.tmp
+
+# Configuration locale
+config/local.*
+!.gitkeep
+
+# Système Windows
+Thumbs.db
+Desktop.ini
