@@ -34,6 +34,17 @@ try:
 
     if response.ok:
         print("SumUp API authentication successful.")
+
+        data = response.json()
+        
+        merchant_profile = data.get("merchant_profile") or {}
+        merchant_code = merchant_profile.get("merchant_code")
+
+        if merchant_code:
+            print("Merchant code récupéré avec succès.")
+        else:
+            print("Merchant code introuvable.")
+
     else:
         print("SumUp API request failed.")
         print("Check the API key and its permissions.")
