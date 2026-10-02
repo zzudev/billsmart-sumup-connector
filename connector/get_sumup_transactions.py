@@ -1,4 +1,5 @@
 import os
+
 from pathlib import Path
 
 import requests
@@ -66,12 +67,33 @@ if response.ok:
 
         print("Nombre de transactions :", len(transactions))
 
+        for index, transaction in enumerate(transactions):
+            print(
+                f"Transaction {index} :",
+                "amount =", transaction.get("amount"),
+                "| payment_type =", transaction.get("payment_type"),
+                "| entry_mode =", transaction.get("entry_mode"),
+                "| timestamp =", transaction.get("timestamp"),
+            )
+
         if transactions:
             print(
                 "Champs de la première transaction :",
                 list(transactions[0].keys())
             )
-            transaction = transactions[0]
+            transaction = next(
+                (
+                    transaction
+                    for transaction in transactions
+                    if transaction.get("payment_type") == "POS"
+                ),
+                None,
+            )
+
+            if transaction is None:
+                raise RuntimeError("Aucune transaction POS trouvée.")
+
+            print("Transaction POS sélectionnée.")
 
             transaction_id = transaction.get("id")
 
@@ -95,6 +117,7 @@ if response.ok:
                 if details_response.ok:
                     details = details_response.json()
                     print("Champs détaillés :", list(details.keys()))
+                    print("Type de paiement :", details.get("payment_type"))
                     products = details.get("products") or []
 
                     print("Type du champ products :", type(products).__name__)
@@ -102,6 +125,7 @@ if response.ok:
 
                     if products:
                         print("Champs du premier produit :", list(products[0].keys()))
+                        print("Premier produit :", products[0])
                     else:
                         print("Aucun produit détaillé disponible.")
 
@@ -109,24 +133,24 @@ if response.ok:
                     receipt_url = (
                         f"https://api.sumup.com/v1.1/receipts/{transaction_id}"
                     )
-                    
+
                     receipt_response = requests.get(
                         receipt_url,
                         headers=headers,
                         params={"mid": merchant_code},
                         timeout=15
                     )
-                    
+
                     print("HTTP reçu :", receipt_response.status_code)
-                    
+
                     if receipt_response.ok:
                         receipt = receipt_response.json()
-                    
+
                         print("Champs du reçu :", list(receipt.keys()))
-                    
+
                         transaction_data = receipt.get("transaction_data") or {}
                         products = transaction_data.get("products") or []
-                    
+
                         print("Nombre de produits dans le reçu :", len(products))
                     else:
                         print("Échec de récupération du reçu.")
