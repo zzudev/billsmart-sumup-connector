@@ -1,9 +1,8 @@
-import csv
 import os
 
 import requests
 from dotenv import load_dotenv
-from datetime import datetime
+from connector.billsmart_csv import build_billsmart_csv
 
 load_dotenv()
 
@@ -215,32 +214,6 @@ print(f"Statut   : {transaction['status']}")
 print("=" * 40)
 
 # Génération du CSV compatible avec BSM1
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-output_dir = "runtime/tmp"
-os.makedirs(output_dir, exist_ok=True)
-
-output_csv_path = os.path.join(
-    output_dir,
-    f"ticket_sumup_{timestamp}.csv",
-)
-
-with open(output_csv_path, "w", encoding="utf-8", newline="") as csv_file:
-    writer = csv.writer(csv_file)
-
-    writer.writerow([
-        "reference",
-        "designation",
-        "quantite",
-        "prix_unitaire",
-    ])
-
-    for index, item in enumerate(ticket_items, start=1):
-        writer.writerow([
-            f"SUMUP{index:03d}",
-            "Paiement SumUp",
-            item["quantity"],
-            f"{item['price']:.2f}",
-        ])
+output_csv_path = build_billsmart_csv(ticket_items)
 
 print(f"CSV BSM1 généré avec succès : {output_csv_path}")
