@@ -23,6 +23,26 @@ class PollSumUpTestCase(unittest.TestCase):
         )
         self.assertFalse(run.call_args.kwargs["check"])
 
+    @patch(
+        "connector.poll_sumup.time.sleep",
+        side_effect=KeyboardInterrupt,
+    )
+    @patch(
+        "connector.poll_sumup.run_cycle",
+        side_effect=RuntimeError("erreur temporaire"),
+    )
+    def test_main_survives_cycle_exception(
+        self,
+        run_cycle,
+        sleep,
+    ):
+        from connector.poll_sumup import main
+
+        main()
+
+        run_cycle.assert_called_once_with()
+        sleep.assert_called_once_with(5)
+
 
 if __name__ == "__main__":
     unittest.main()

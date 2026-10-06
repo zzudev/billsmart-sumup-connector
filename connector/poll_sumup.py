@@ -28,12 +28,19 @@ def main() -> None:
 
     try:
         while True:
-            return_code = run_cycle()
+            try:
+                return_code = run_cycle()
 
-            if return_code != 0:
+                if return_code != 0:
+                    print(
+                        "Cycle SumUp en erreur "
+                        f"(code {return_code})."
+                    )
+
+            except Exception as exc:
                 print(
-                    "Cycle SumUp en erreur "
-                    f"(code {return_code})."
+                    "Erreur pendant le cycle SumUp : "
+                    f"{type(exc).__name__}: {exc}"
                 )
 
             time.sleep(POLL_INTERVAL_SECONDS)
