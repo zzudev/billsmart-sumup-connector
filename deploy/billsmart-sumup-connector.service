@@ -1,0 +1,17 @@
+[Unit]
+Description=BillSmart SumUp Connector
+Wants=network-online.target
+After=network-online.target boulxblb-api.service
+
+[Service]
+Type=simple
+User=billsmart1
+Group=billsmart1
+WorkingDirectory=/home/billsmart1/billsmart-sumup-connector
+Environment="PATH=/home/billsmart1/billsmart-sumup-connector/venv/bin"
+ExecStart=/home/billsmart1/billsmart-sumup-connector/venv/bin/python -m connector.poll_sumup
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
