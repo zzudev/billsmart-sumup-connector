@@ -1,8 +1,15 @@
 import os
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+
 from connector.billsmart_csv import build_billsmart_csv
+from connector.idempotency import is_transaction_processed
+from connector.receipt_delivery import deliver_receipt
+
+
+STATE_PATH = Path("runtime/state/processed_transactions.json")
 
 load_dotenv()
 
@@ -75,6 +82,13 @@ transaction_id = latest_pos_transaction.get("id")
 
 if not transaction_id:
     raise RuntimeError("Identifiant de transaction absent.")
+
+if is_transaction_processed(
+    transaction_id,
+    state_path=STATE_PATH,
+):
+    print("Transaction SumUp déjà traitée. Aucun nouveau ticket créé.")
+    raise SystemExit(0)
 
 transaction_details_url = (
     f"https://api.sumup.com/v2.1/merchants/"
@@ -217,3 +231,30 @@ print("=" * 40)
 output_csv_path = build_billsmart_csv(ticket_items)
 
 print(f"CSV BSM1 généré avec succès : {output_csv_path}")
+
+delivery_result = deliver_receipt(
+    transaction_id,
+    output_csv_path,
+    state_path=STATE_PATH,
+)
+
+receipt = delivery_result.get("receipt")
+edge = delivery_result.get("edge", {})
+
+if not receipt:
+    raise RuntimeError(
+        "BSM1 n'a pas confirmé la création du ticket."
+    )
+
+print(
+    "Ticket BillSmart créé avec succès."
+    f" ID : {receipt['receipt_id']}"
+)
+
+if edge.get("ok"):
+    print("Affichage BSM5 demandé avec succès.")
+else:
+    print(
+        "Ticket créé, mais l'affichage BSM5 a échoué."
+        " Le ticket ne sera pas recréé."
+    )
