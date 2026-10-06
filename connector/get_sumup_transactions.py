@@ -81,13 +81,16 @@ if response.ok:
                 "Champs de la première transaction :",
                 list(transactions[0].keys())
             )
-            transaction = next(
-                (
-                    transaction
-                    for transaction in transactions
-                    if transaction.get("payment_type") == "POS"
-                ),
-                None,
+            pos_transactions = [
+                transaction
+                for transaction in transactions
+                if transaction.get("payment_type") == "POS"
+            ]
+
+            transaction = max(
+                pos_transactions,
+                key=lambda item: item.get("timestamp", ""),
+                default=None,
             )
 
             if transaction is None:
