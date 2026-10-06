@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import logging
 import subprocess
 import sys
 import time
 
 
 POLL_INTERVAL_SECONDS = 5
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 def run_cycle() -> int:
@@ -21,9 +28,10 @@ def run_cycle() -> int:
 
 
 def main() -> None:
-    print(
+    logger.info(
         "Surveillance SumUp démarrée "
-        f"(intervalle : {POLL_INTERVAL_SECONDS} s)."
+        "(intervalle : %s s).",
+        POLL_INTERVAL_SECONDS,
     )
 
     try:
@@ -32,21 +40,20 @@ def main() -> None:
                 return_code = run_cycle()
 
                 if return_code != 0:
-                    print(
-                        "Cycle SumUp en erreur "
-                        f"(code {return_code})."
+                    logger.warning(
+                        "Cycle SumUp terminé avec le code %s.",
+                        return_code,
                     )
 
-            except Exception as exc:
-                print(
-                    "Erreur pendant le cycle SumUp : "
-                    f"{type(exc).__name__}: {exc}"
+            except Exception:
+                logger.exception(
+                    "Erreur pendant le cycle SumUp."
                 )
 
             time.sleep(POLL_INTERVAL_SECONDS)
 
     except KeyboardInterrupt:
-        print("\nSurveillance SumUp arrêtée.")
+        logger.info("Surveillance SumUp arrêtée.")
 
 
 if __name__ == "__main__":

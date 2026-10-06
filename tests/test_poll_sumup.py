@@ -38,10 +38,22 @@ class PollSumUpTestCase(unittest.TestCase):
     ):
         from connector.poll_sumup import main
 
-        main()
+        with self.assertLogs(
+            "connector.poll_sumup",
+            level="ERROR",
+        ) as logs:
+            main()
 
         run_cycle.assert_called_once_with()
         sleep.assert_called_once_with(5)
+
+        self.assertTrue(
+            any(
+                "Erreur pendant le cycle SumUp."
+                in message
+                for message in logs.output
+            )
+        )
 
 
 if __name__ == "__main__":
