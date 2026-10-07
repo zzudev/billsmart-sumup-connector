@@ -124,3 +124,16 @@ def validate_transaction(transaction):
         )
 
     return True
+
+
+def build_payment_request(transaction):
+    """Build a provider-neutral payment request from a BillSmart transaction."""
+    validate_transaction(transaction)
+
+    return {
+        "sale_id": transaction["sale_id"],
+        "amount": str(_money(transaction["payment"]["amount"]).quantize(
+            Decimal("0.01")
+        )),
+        "currency": transaction["currency"],
+    }

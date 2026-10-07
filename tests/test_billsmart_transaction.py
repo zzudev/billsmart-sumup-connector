@@ -159,3 +159,28 @@ def test_reject_negative_unit_price():
         match="Item unit price cannot be negative",
     ):
         validate_transaction(transaction)
+
+
+def test_build_payment_request():
+    from connector.billsmart_transaction import build_payment_request
+
+    payment_request = build_payment_request(SAMPLE_TRANSACTION)
+
+    assert payment_request == {
+        "sale_id": "BLB-TEST-0001",
+        "amount": "6.20",
+        "currency": "EUR",
+    }
+
+
+def test_payment_request_rejects_invalid_transaction():
+    from connector.billsmart_transaction import build_payment_request
+
+    transaction = copy.deepcopy(SAMPLE_TRANSACTION)
+    transaction["payment"]["amount"] = "6.50"
+
+    with pytest.raises(
+        BillSmartTransactionError,
+        match="Payment amount mismatch",
+    ):
+        build_payment_request(transaction)
