@@ -220,3 +220,42 @@ def test_send_checkout_to_physical_solo():
     )
 
     assert result == {"status": "PENDING"}
+
+
+def test_get_reader_checkout():
+    from unittest.mock import patch
+
+    from connector.sumup_reader_client import get_reader_checkout
+
+    checkout_response = {
+        "data": {
+            "checkout_id": "CHECKOUT-001",
+            "status": "successful",
+        }
+    }
+
+    with patch("connector.sumup_reader_client.requests.get") as get:
+        get.return_value.json.return_value = checkout_response
+
+        result = get_reader_checkout(
+            api_key="test-api-key",
+            merchant_code="MERCHANT-TEST",
+            reader_id="physical-reader",
+            checkout_id="CHECKOUT-001",
+        )
+
+    get.assert_called_once_with(
+        (
+            "https://api.sumup.com/v0.1/merchants/"
+            "MERCHANT-TEST/readers/physical-reader/"
+            "checkout/CHECKOUT-001"
+        ),
+        headers={
+            "Authorization": "Bearer test-api-key",
+            "Content-Type": "application/json",
+        },
+        timeout=15,
+    )
+
+    get.return_value.raise_for_status.assert_called_once_with()
+    assert result == checkout_response

@@ -98,3 +98,38 @@ def send_checkout_to_physical_solo(api_key, payload):
         reader_id=reader["id"],
         payload=payload,
     )
+
+
+def get_reader_checkout(api_key, merchant_code, reader_id, checkout_id):
+    """Retrieve a specific SumUp Reader Checkout without creating a payment."""
+    for name, value in (
+        ("api_key", api_key),
+        ("merchant_code", merchant_code),
+        ("reader_id", reader_id),
+        ("checkout_id", checkout_id),
+    ):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"Invalid {name}")
+
+    import requests
+    from urllib.parse import quote
+
+    merchant = quote(merchant_code, safe="")
+    reader = quote(reader_id, safe="")
+    checkout = quote(checkout_id, safe="")
+
+    url = (
+        f"https://api.sumup.com/v0.1/merchants/{merchant}"
+        f"/readers/{reader}/checkout/{checkout}"
+    )
+
+    response = requests.get(
+        url,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+    return response.json()
