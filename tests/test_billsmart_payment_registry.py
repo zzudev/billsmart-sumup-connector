@@ -212,3 +212,288 @@ def test_provider_reference_cannot_be_shared_by_two_payments():
             "BLB-PAY-002",
             state_path=state_path,
         )["provider_checkout_id"] is None
+
+
+def test_payment_can_transition_from_created_to_pending():
+    from connector.billsmart_payment_registry import update_payment_status
+
+    payment = {
+        "payment_id": "BLB-PAY-STATUS-001",
+        "sale_id": "BLB-SALE-001",
+        "amount": "6.20",
+        "currency": "EUR",
+        "provider": "sumup",
+        "status": "created",
+        "provider_checkout_id": None,
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state_path = Path(tmp) / "payments.json"
+
+        save_payment(payment, state_path=state_path)
+
+        update_payment_status(
+            "BLB-PAY-STATUS-001",
+            "pending",
+            state_path=state_path,
+        )
+
+        restored = load_payment(
+            "BLB-PAY-STATUS-001",
+            state_path=state_path,
+        )
+
+        assert restored["status"] == "pending"
+        assert restored["sale_id"] == "BLB-SALE-001"
+
+
+def test_payment_cannot_succeed_directly_from_created():
+    import pytest
+
+    from connector.billsmart_payment_registry import update_payment_status
+
+    payment = {
+        "payment_id": "BLB-PAY-INVALID-TRANSITION-001",
+        "sale_id": "BLB-SALE-001",
+        "amount": "6.20",
+        "currency": "EUR",
+        "provider": "sumup",
+        "status": "created",
+        "provider_checkout_id": None,
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state_path = Path(tmp) / "payments.json"
+
+        save_payment(payment, state_path=state_path)
+
+        with pytest.raises(
+            ValueError,
+            match="Invalid payment status transition",
+        ):
+            update_payment_status(
+                payment["payment_id"],
+                "succeeded",
+                state_path=state_path,
+            )
+
+        restored = load_payment(
+            payment["payment_id"],
+            state_path=state_path,
+        )
+
+        assert restored["status"] == "created"
+
+
+def test_repeated_pending_transition_is_idempotent():
+    from connector.billsmart_payment_registry import update_payment_status
+
+    payment = {
+        "payment_id": "BLB-PAY-IDEMPOTENT-001",
+        "sale_id": "BLB-SALE-001",
+        "amount": "6.20",
+        "currency": "EUR",
+        "provider": "sumup",
+        "status": "created",
+        "provider_checkout_id": None,
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state_path = Path(tmp) / "payments.json"
+
+        save_payment(payment, state_path=state_path)
+
+        first = update_payment_status(
+            payment["payment_id"],
+            "pending",
+            state_path=state_path,
+        )
+
+        second = update_payment_status(
+            payment["payment_id"],
+            "pending",
+            state_path=state_path,
+        )
+
+        restored = load_payment(
+            payment["payment_id"],
+            state_path=state_path,
+        )
+
+        assert first["status"] == "pending"
+        assert second["status"] == "pending"
+        assert restored["status"] == "pending"
+        assert restored["sale_id"] == "BLB-SALE-001"
+
+
+def test_pending_payment_can_transition_to_succeeded():
+    from connector.billsmart_payment_registry import update_payment_status
+
+    payment = {
+        "payment_id": "BLB-PAY-SUCCESS-001",
+        "sale_id": "BLB-SALE-001",
+        "amount": "6.20",
+        "currency": "EUR",
+        "provider": "sumup",
+        "status": "created",
+        "provider_checkout_id": "CHECKOUT-SUCCESS-001",
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state_path = Path(tmp) / "payments.json"
+
+        save_payment(payment, state_path=state_path)
+
+        update_payment_status(
+            payment["payment_id"],
+            "pending",
+            state_path=state_path,
+        )
+
+        update_payment_status(
+            payment["payment_id"],
+            "succeeded",
+            state_path=state_path,
+        )
+
+        restored = load_payment(
+            payment["payment_id"],
+            state_path=state_path,
+        )
+
+        assert restored["status"] == "succeeded"
+        assert restored["sale_id"] == "BLB-SALE-001"
+        assert restored["provider_checkout_id"] == "CHECKOUT-SUCCESS-001"
+
+
+def test_pending_payment_can_fail_or_be_cancelled():
+    from connector.billsmart_payment_registry import update_payment_status
+
+    for final_status in ("failed", "cancelled"):
+        payment_id = f"BLB-PAY-{final_status.upper()}-001"
+
+        payment = {
+            "payment_id": payment_id,
+            "sale_id": "BLB-SALE-001",
+            "amount": "6.20",
+            "currency": "EUR",
+            "provider": "sumup",
+            "status": "created",
+            "provider_checkout_id": f"CHECKOUT-{final_status.upper()}-001",
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "payments.json"
+
+            save_payment(payment, state_path=state_path)
+
+            update_payment_status(
+                payment_id,
+                "pending",
+                state_path=state_path,
+            )
+
+            update_payment_status(
+                payment_id,
+                final_status,
+                state_path=state_path,
+            )
+
+            restored = load_payment(
+                payment_id,
+                state_path=state_path,
+            )
+
+            assert restored["status"] == final_status
+            assert restored["sale_id"] == "BLB-SALE-001"
+
+
+def test_pending_payment_can_fail_or_be_cancelled():
+    from connector.billsmart_payment_registry import update_payment_status
+
+    for final_status in ("failed", "cancelled"):
+        payment_id = f"BLB-PAY-{final_status.upper()}-001"
+
+        payment = {
+            "payment_id": payment_id,
+            "sale_id": "BLB-SALE-001",
+            "amount": "6.20",
+            "currency": "EUR",
+            "provider": "sumup",
+            "status": "created",
+            "provider_checkout_id": f"CHECKOUT-{final_status.upper()}-001",
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "payments.json"
+
+            save_payment(payment, state_path=state_path)
+
+            update_payment_status(
+                payment_id,
+                "pending",
+                state_path=state_path,
+            )
+
+            update_payment_status(
+                payment_id,
+                final_status,
+                state_path=state_path,
+            )
+
+            restored = load_payment(
+                payment_id,
+                state_path=state_path,
+            )
+
+            assert restored["status"] == final_status
+            assert restored["sale_id"] == "BLB-SALE-001"
+
+
+def test_terminal_payment_statuses_cannot_be_changed():
+    import pytest
+
+    from connector.billsmart_payment_registry import update_payment_status
+
+    for terminal_status in ("succeeded", "failed", "cancelled"):
+        payment_id = f"BLB-PAY-TERMINAL-{terminal_status.upper()}"
+
+        payment = {
+            "payment_id": payment_id,
+            "sale_id": "BLB-SALE-001",
+            "amount": "6.20",
+            "currency": "EUR",
+            "provider": "sumup",
+            "status": "created",
+            "provider_checkout_id": f"CHECKOUT-{terminal_status.upper()}",
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "payments.json"
+
+            save_payment(payment, state_path=state_path)
+
+            update_payment_status(
+                payment_id, "pending", state_path=state_path
+            )
+
+            update_payment_status(
+                payment_id, terminal_status, state_path=state_path
+            )
+
+            for other_status in ("succeeded", "failed", "cancelled"):
+                if other_status == terminal_status:
+                    continue
+
+                with pytest.raises(
+                    ValueError,
+                    match="Invalid payment status transition",
+                ):
+                    update_payment_status(
+                        payment_id,
+                        other_status,
+                        state_path=state_path,
+                    )
+
+            restored = load_payment(payment_id, state_path=state_path)
+            assert restored["status"] == terminal_status

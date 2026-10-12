@@ -125,3 +125,59 @@ def set_provider_checkout_reference(
     temporary_path.replace(path)
 
     return payment
+
+
+def update_payment_status(
+    payment_id,
+    new_status,
+    *,
+    state_path=DEFAULT_PAYMENTS_PATH,
+):
+    """Update a payment status using controlled state transitions."""
+    allowed_transitions = {
+        "created": {"pending"},
+        "pending": {"succeeded", "failed", "cancelled"},
+        "succeeded": set(),
+        "failed": set(),
+        "cancelled": set(),
+    }
+
+    path = Path(state_path)
+
+    if not path.exists():
+        raise ValueError(f"Payment not found: {payment_id}")
+
+    with path.open("r", encoding="utf-8") as f:
+        payments = json.load(f)
+
+    if not isinstance(payments, dict):
+        raise ValueError("Invalid BillSmart payment registry")
+
+    if payment_id not in payments:
+        raise ValueError(f"Payment not found: {payment_id}")
+
+    payment = payments[payment_id]
+    current_status = payment.get("status")
+
+    if current_status not in allowed_transitions:
+        raise ValueError(f"Unknown payment status: {current_status}")
+
+    if new_status == current_status:
+        return payment
+
+    if new_status not in allowed_transitions[current_status]:
+        raise ValueError(
+            f"Invalid payment status transition: "
+            f"{current_status} -> {new_status}"
+        )
+
+    payment["status"] = new_status
+
+    temporary_path = path.with_suffix(".tmp")
+
+    with temporary_path.open("w", encoding="utf-8") as f:
+        json.dump(payments, f, indent=2, ensure_ascii=False, sort_keys=True)
+
+    temporary_path.replace(path)
+
+    return payment
