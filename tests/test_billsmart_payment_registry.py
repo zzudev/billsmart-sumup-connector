@@ -497,3 +497,178 @@ def test_terminal_payment_statuses_cannot_be_changed():
 
             restored = load_payment(payment_id, state_path=state_path)
             assert restored["status"] == terminal_status
+
+
+def test_provider_client_transaction_reference_is_persisted():
+    from connector.billsmart_payment_registry import (
+        set_provider_client_transaction_reference,
+    )
+
+    payment = {
+        "payment_id": "BLB-PAY-CLIENT-REF-001",
+        "sale_id": "BLB-SALE-001",
+        "amount": "6.20",
+        "currency": "EUR",
+        "provider": "sumup",
+        "status": "created",
+        "provider_checkout_id": None,
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state_path = Path(tmp) / "payments.json"
+
+        save_payment(payment, state_path=state_path)
+
+        set_provider_client_transaction_reference(
+            payment["payment_id"],
+            "CLIENT-TX-001",
+            state_path=state_path,
+        )
+
+        restored = load_payment(
+            payment["payment_id"],
+            state_path=state_path,
+        )
+
+        assert restored["sale_id"] == "BLB-SALE-001"
+        assert (
+            restored["provider_client_transaction_id"]
+            == "CLIENT-TX-001"
+        )
+
+
+def test_conflicting_provider_client_transaction_reference_is_rejected():
+    import pytest
+
+    from connector.billsmart_payment_registry import (
+        set_provider_client_transaction_reference,
+    )
+
+    payment = {
+        "payment_id": "BLB-PAY-CLIENT-CONFLICT-001",
+        "sale_id": "BLB-SALE-001",
+        "amount": "6.20",
+        "currency": "EUR",
+        "provider": "sumup",
+        "status": "created",
+        "provider_checkout_id": None,
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state_path = Path(tmp) / "payments.json"
+
+        save_payment(payment, state_path=state_path)
+
+        set_provider_client_transaction_reference(
+            payment["payment_id"],
+            "CLIENT-TX-001",
+            state_path=state_path,
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Conflicting provider client transaction reference",
+        ):
+            set_provider_client_transaction_reference(
+                payment["payment_id"],
+                "CLIENT-TX-002",
+                state_path=state_path,
+            )
+
+        restored = load_payment(
+            payment["payment_id"],
+            state_path=state_path,
+        )
+
+        assert restored["provider_client_transaction_id"] == "CLIENT-TX-001"
+
+
+def test_provider_client_transaction_reference_cannot_be_shared():
+    import pytest
+
+    from connector.billsmart_payment_registry import (
+        set_provider_client_transaction_reference,
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state_path = Path(tmp) / "payments.json"
+
+        for payment_id in ("BLB-PAY-CLIENT-001", "BLB-PAY-CLIENT-002"):
+            save_payment(
+                {
+                    "payment_id": payment_id,
+                    "sale_id": "BLB-SALE-001",
+                    "amount": "6.20",
+                    "currency": "EUR",
+                    "provider": "sumup",
+                    "status": "created",
+                    "provider_checkout_id": None,
+                },
+                state_path=state_path,
+            )
+
+        set_provider_client_transaction_reference(
+            "BLB-PAY-CLIENT-001",
+            "CLIENT-TX-001",
+            state_path=state_path,
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Provider client transaction reference already assigned",
+        ):
+            set_provider_client_transaction_reference(
+                "BLB-PAY-CLIENT-002",
+                "CLIENT-TX-001",
+                state_path=state_path,
+            )
+
+        restored = load_payment(
+            "BLB-PAY-CLIENT-002",
+            state_path=state_path,
+        )
+
+        assert restored.get("provider_client_transaction_id") is None
+
+
+def test_repeated_provider_client_transaction_reference_is_idempotent():
+    from connector.billsmart_payment_registry import (
+        set_provider_client_transaction_reference,
+    )
+
+    payment = {
+        "payment_id": "BLB-PAY-CLIENT-IDEMPOTENT-001",
+        "sale_id": "BLB-SALE-001",
+        "amount": "6.20",
+        "currency": "EUR",
+        "provider": "sumup",
+        "status": "created",
+        "provider_checkout_id": None,
+    }
+
+    with tempfile.TemporaryDirectory() as tmp:
+        state_path = Path(tmp) / "payments.json"
+
+        save_payment(payment, state_path=state_path)
+
+        first = set_provider_client_transaction_reference(
+            payment["payment_id"],
+            "CLIENT-TX-001",
+            state_path=state_path,
+        )
+
+        second = set_provider_client_transaction_reference(
+            payment["payment_id"],
+            "CLIENT-TX-001",
+            state_path=state_path,
+        )
+
+        restored = load_payment(
+            payment["payment_id"],
+            state_path=state_path,
+        )
+
+        assert first["provider_client_transaction_id"] == "CLIENT-TX-001"
+        assert second["provider_client_transaction_id"] == "CLIENT-TX-001"
+        assert restored["provider_client_transaction_id"] == "CLIENT-TX-001"
+        assert restored["sale_id"] == "BLB-SALE-001"

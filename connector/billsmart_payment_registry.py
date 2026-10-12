@@ -181,3 +181,61 @@ def update_payment_status(
     temporary_path.replace(path)
 
     return payment
+
+
+def set_provider_client_transaction_reference(
+    payment_id,
+    client_transaction_id,
+    *,
+    state_path=DEFAULT_PAYMENTS_PATH,
+):
+    """Associate a provider client transaction reference with a payment."""
+    if (
+        not isinstance(client_transaction_id, str)
+        or not client_transaction_id.strip()
+    ):
+        raise ValueError("Invalid provider client transaction reference")
+
+    path = Path(state_path)
+
+    if not path.exists():
+        raise ValueError(f"Payment not found: {payment_id}")
+
+    with path.open("r", encoding="utf-8") as f:
+        payments = json.load(f)
+
+    if not isinstance(payments, dict):
+        raise ValueError("Invalid BillSmart payment registry")
+
+    if payment_id not in payments:
+        raise ValueError(f"Payment not found: {payment_id}")
+
+    payment = payments[payment_id]
+    field = "provider_client_transaction_id"
+    existing = payment.get(field)
+
+    if existing is not None:
+        if existing == client_transaction_id:
+            return payment
+        raise ValueError("Conflicting provider client transaction reference")
+
+    for other_id, other_payment in payments.items():
+        if (
+            other_id != payment_id
+            and other_payment.get("provider") == payment.get("provider")
+            and other_payment.get(field) == client_transaction_id
+        ):
+            raise ValueError(
+                "Provider client transaction reference already assigned"
+            )
+
+    payment[field] = client_transaction_id
+
+    temporary_path = path.with_suffix(".tmp")
+
+    with temporary_path.open("w", encoding="utf-8") as f:
+        json.dump(payments, f, indent=2, ensure_ascii=False, sort_keys=True)
+
+    temporary_path.replace(path)
+
+    return payment

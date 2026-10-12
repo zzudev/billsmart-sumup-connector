@@ -33,3 +33,74 @@ def test_reject_amount_with_more_than_two_decimal_places():
         match="Amount has more than two decimal places",
     ):
         build_sumup_checkout_payload(payment_request)
+
+
+def test_extract_reader_checkout_identifiers():
+    from connector.sumup_payment_adapter import (
+        extract_reader_checkout_identifiers,
+    )
+
+    response = {
+        "data": {
+            "checkout_id": "CHECKOUT-001",
+            "client_transaction_id": "CLIENT-TX-001",
+        }
+    }
+
+    assert extract_reader_checkout_identifiers(response) == {
+        "checkout_id": "CHECKOUT-001",
+        "client_transaction_id": "CLIENT-TX-001",
+    }
+
+
+def test_invalid_reader_checkout_responses_are_rejected():
+    import pytest
+
+    from connector.sumup_payment_adapter import (
+        extract_reader_checkout_identifiers,
+    )
+
+    invalid_responses = [
+        None,
+        {},
+        {"status": "PENDING"},
+        {"data": None},
+        {"data": {}},
+        {"data": {"checkout_id": ""}},
+        {"data": {"checkout_id": 123}},
+        {"data": {"client_transaction_id": "   "}},
+    ]
+
+    for response in invalid_responses:
+        with pytest.raises(ValueError):
+            extract_reader_checkout_identifiers(response)
+
+
+def test_reader_checkout_accepts_partial_identifiers():
+    from connector.sumup_payment_adapter import (
+        extract_reader_checkout_identifiers,
+    )
+
+    response_with_checkout_id = {
+        "data": {
+            "checkout_id": "CHECKOUT-001",
+        }
+    }
+
+    assert extract_reader_checkout_identifiers(
+        response_with_checkout_id
+    ) == {
+        "checkout_id": "CHECKOUT-001",
+    }
+
+    response_with_client_transaction_id = {
+        "data": {
+            "client_transaction_id": "CLIENT-TX-001",
+        }
+    }
+
+    assert extract_reader_checkout_identifiers(
+        response_with_client_transaction_id
+    ) == {
+        "client_transaction_id": "CLIENT-TX-001",
+    }
