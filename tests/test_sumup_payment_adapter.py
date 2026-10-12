@@ -104,3 +104,67 @@ def test_reader_checkout_accepts_partial_identifiers():
     ) == {
         "client_transaction_id": "CLIENT-TX-001",
     }
+
+
+def test_normalize_reader_checkout_pending():
+    from connector.sumup_payment_adapter import (
+        normalize_reader_checkout,
+    )
+
+    response = {
+        "data": {
+            "checkout_id": "CHECKOUT-001",
+            "client_transaction_id": "CLIENT-TX-001",
+            "status": "pending",
+            "payment_status": "pending",
+            "total_amount": {
+                "currency": "EUR",
+                "minor_unit": 2,
+                "value": 620,
+            },
+        }
+    }
+
+    assert normalize_reader_checkout(response) == {
+        "provider_checkout_id": "CHECKOUT-001",
+        "provider_client_transaction_id": "CLIENT-TX-001",
+        "status": "pending",
+        "amount": "6.20",
+        "currency": "EUR",
+    }
+
+
+def test_normalize_reader_checkout_rejects_inconsistent_data():
+    import pytest
+
+    from connector.sumup_payment_adapter import (
+        normalize_reader_checkout,
+    )
+
+    valid_data = {
+        "checkout_id": "CHECKOUT-001",
+        "client_transaction_id": "CLIENT-TX-001",
+        "status": "pending",
+        "payment_status": "pending",
+        "total_amount": {
+            "currency": "EUR",
+            "minor_unit": 2,
+            "value": 620,
+        },
+    }
+
+    invalid_cases = [
+        {"status": "unknown"},
+        {"payment_status": "failed"},
+        {"checkout_id": ""},
+        {"client_transaction_id": ""},
+        {"total_amount": {"currency": "EUR", "minor_unit": 2, "value": 0}},
+        {"total_amount": {"currency": "EUR", "minor_unit": 2, "value": 620.5}},
+        {"total_amount": {"currency": "EUR", "minor_unit": 3, "value": 620}},
+    ]
+
+    for changes in invalid_cases:
+        data = {**valid_data, **changes}
+
+        with pytest.raises(ValueError):
+            normalize_reader_checkout({"data": data})
