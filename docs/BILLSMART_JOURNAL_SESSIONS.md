@@ -168,3 +168,67 @@ sed -n '1,150p' connector/sumup_reader_client.py
 ```
 
 **Règle :** consigner uniquement les résultats effectivement observés, marquer les hypothèses comme telles, et ne jamais copier de secrets dans le journal.
+
+---
+
+## 5. Session 2 — Analyse technique et préparation du simulateur — 12 octobre 2026
+
+### Objectif
+Sécuriser la documentation du projet et préparer la persistance des ventes du BillSmart Transaction Simulator.
+
+### Réalisations validées
+- Documents de référence versionnés dans Git.
+- Commit documentaire 307ad93 publié sur GitHub.
+- Branche POC synchronisée avec origin.
+- Analyse du client SumUp Solo et de l'adaptateur de paiement.
+- Analyse du contrat universel BillSmart v0.1.
+- Analyse des tests du flux BillSmart vers SumUp.
+- Analyse du registre d'idempotence existant.
+- Confirmation de la nécessité d'un registre des ventes distinct.
+
+### Décisions
+- Préserver le poller SumUp historique pour le scénario terminal seul.
+- Enregistrer les ventes BillSmart avant le paiement.
+- Conserver le sale_id comme identifiant interne stable.
+- Prévoir une corrélation explicite entre vente et paiement.
+- Ne pas modifier le contrat universel ni l'adaptateur SumUp à ce stade.
+- Ne pas déclencher de paiement réel sans accord explicite.
+
+### Premier test préparé
+Fichier créé : tests/test_billsmart_sale_registry.py
+
+Test : test_sale_is_persisted_and_reloaded
+
+Résultat observé :
+ModuleNotFoundError: No module named 'connector.billsmart_sale_registry'
+
+Cet échec est attendu : le module n'est pas encore implémenté.
+Aucune nouvelle exécution complète des 35 tests historiques n'a été effectuée.
+
+### Points techniques ouverts
+- Vérifier les identifiants réellement retournés par SumUp Reader Checkout.
+- Implémenter la persistance des ventes.
+- Tester les doublons et les ventes invalides.
+- Prévoir la gestion des paiements concurrents et des redémarrages.
+- Construire ensuite le rapprochement paiement/vente et le ticket enrichi.
+
+### POINT DE REPRISE — Session 3
+Dépôt : /home/billsmart1/billsmart-sumup-connector
+Branche : poc_sumup-solo_interfacage_blb-billsmart
+Dernier commit confirmé avant clôture : 307ad93
+
+Première action : vérifier git status et le dernier commit.
+
+Reprendre à partir du test déjà créé :
+tests/test_billsmart_sale_registry.py
+
+Prochaine implémentation :
+connector/billsmart_sale_registry.py
+
+Fonctions initiales :
+- save_sale() : valider et enregistrer une vente.
+- load_sale() : retrouver une vente par son sale_id.
+
+Faire réussir le premier test, ajouter les protections contre les doublons et les ventes invalides, puis exécuter la suite complète.
+
+Ne pas déclencher de paiement réel pendant cette étape.
