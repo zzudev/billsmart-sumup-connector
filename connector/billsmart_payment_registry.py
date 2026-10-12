@@ -73,3 +73,55 @@ def save_payment(payment, *, state_path=DEFAULT_PAYMENTS_PATH):
         json.dump(payments, f, indent=2, ensure_ascii=False, sort_keys=True)
 
     temporary_path.replace(path)
+
+
+def set_provider_checkout_reference(
+    payment_id,
+    checkout_id,
+    *,
+    state_path=DEFAULT_PAYMENTS_PATH,
+):
+    """Associate a provider checkout reference with a payment attempt."""
+    if not isinstance(checkout_id, str) or not checkout_id.strip():
+        raise ValueError("Invalid provider checkout reference")
+
+    path = Path(state_path)
+
+    if not path.exists():
+        raise ValueError(f"Payment not found: {payment_id}")
+
+    with path.open("r", encoding="utf-8") as f:
+        payments = json.load(f)
+
+    if not isinstance(payments, dict):
+        raise ValueError("Invalid BillSmart payment registry")
+
+    if payment_id not in payments:
+        raise ValueError(f"Payment not found: {payment_id}")
+
+    payment = payments[payment_id]
+    existing = payment.get("provider_checkout_id")
+
+    if existing is not None:
+        if existing == checkout_id:
+            return payment
+        raise ValueError("Conflicting provider checkout reference")
+
+    for other_id, other_payment in payments.items():
+        if (
+            other_id != payment_id
+            and other_payment.get("provider") == payment.get("provider")
+            and other_payment.get("provider_checkout_id") == checkout_id
+        ):
+            raise ValueError("Provider checkout reference already assigned")
+
+    payment["provider_checkout_id"] = checkout_id
+
+    temporary_path = path.with_suffix(".tmp")
+
+    with temporary_path.open("w", encoding="utf-8") as f:
+        json.dump(payments, f, indent=2, ensure_ascii=False, sort_keys=True)
+
+    temporary_path.replace(path)
+
+    return payment
