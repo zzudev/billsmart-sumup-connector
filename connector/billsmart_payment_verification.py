@@ -57,6 +57,28 @@ def verify_payment_confirmation(payment, confirmation):
     if status not in ("pending", "succeeded", "failed", "cancelled"):
         raise ValueError("Invalid confirmation status")
 
+    allowed_transitions = {
+        "created": {"pending"},
+        "pending": {"succeeded", "failed", "cancelled"},
+        "succeeded": set(),
+        "failed": set(),
+        "cancelled": set(),
+    }
+
+    current_status = payment.get("status")
+
+    if current_status not in allowed_transitions:
+        raise ValueError("Unknown current payment status")
+
+    if (
+        status != current_status
+        and status not in allowed_transitions[current_status]
+    ):
+        raise ValueError(
+            f"Invalid payment confirmation transition: "
+            f"{current_status} -> {status}"
+        )
+
     return {
         "payment_id": payment["payment_id"],
         "sale_id": payment["sale_id"],
