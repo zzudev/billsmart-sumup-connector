@@ -168,3 +168,40 @@ def test_normalize_reader_checkout_rejects_inconsistent_data():
 
         with pytest.raises(ValueError):
             normalize_reader_checkout({"data": data})
+
+
+def test_normalize_reader_checkout_terminal_statuses():
+    from connector.sumup_payment_adapter import (
+        normalize_reader_checkout,
+    )
+
+    status_mapping = {
+        "successful": "succeeded",
+        "failed": "failed",
+        "cancelled": "cancelled",
+    }
+
+    for provider_status, expected_status in status_mapping.items():
+        response = {
+            "data": {
+                "checkout_id": "CHECKOUT-TERMINAL-001",
+                "client_transaction_id": "CLIENT-TX-TERMINAL-001",
+                "status": provider_status,
+                "payment_status": provider_status,
+                "total_amount": {
+                    "currency": "EUR",
+                    "minor_unit": 2,
+                    "value": 620,
+                },
+            }
+        }
+
+        normalized = normalize_reader_checkout(response)
+
+        assert normalized == {
+            "provider_checkout_id": "CHECKOUT-TERMINAL-001",
+            "provider_client_transaction_id": "CLIENT-TX-TERMINAL-001",
+            "status": expected_status,
+            "amount": "6.20",
+            "currency": "EUR",
+        }
