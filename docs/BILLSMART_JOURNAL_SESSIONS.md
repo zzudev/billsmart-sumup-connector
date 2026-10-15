@@ -2,7 +2,7 @@
 
 **Projet :** Projet_BiLB_x_AEDF_et_MBOUCHE
 **Sous-projet :** Interfaçage universel BillSmart / caisse / paiement
-**Dernière mise à jour :** 10 octobre 2026
+**Dernière mise à jour :** 15 octobre 2026 (Session 3)
 **Document complémentaire :** `BILLSMART_CONTEXTE_REFERENCE.md`
 
 > Ce journal distingue les **faits validés**, les **choix architecturaux** et les **travaux à venir**. Les dates de chaque sous-étape antérieure ne sont pas toutes disponibles ; ne pas en inventer.
@@ -232,3 +232,77 @@ Fonctions initiales :
 Faire réussir le premier test, ajouter les protections contre les doublons et les ventes invalides, puis exécuter la suite complète.
 
 Ne pas déclencher de paiement réel pendant cette étape.
+
+---
+
+## 6. Session 3 — Registres, corrélation et vérification des paiements — état au 15 octobre 2026
+
+### Objectif de départ
+
+Poursuivre le POC universel BillSmart en créant les fondations de persistance et de corrélation des ventes et paiements, puis préparer la confirmation d’un paiement SumUp Reader, sans compromettre le POC historique ni déclencher de paiement réel.
+
+### Actions et fichiers implémentés / examinés
+
+- `connector/billsmart_sale_registry.py` : `save_sale()` et `load_sale()`, validation, persistance JSON, rejet des doublons.
+- `connector/billsmart_payment_registry.py` : `save_payment()`, `load_payment()`, association des références `provider_checkout_id` et `provider_client_transaction_id`, `update_payment_status()` avec transitions contrôlées et idempotence.
+- `connector/billsmart_payment_link.py` : `create_payment_for_sale()` relie un paiement neutre à une vente existante et persistée.
+- `connector/sumup_payment_adapter.py` : extraction des références Reader et normalisation de réponses simulées (statuts `pending`, `successful`, `failed`, `cancelled` ; montant/devise).
+- `connector/sumup_reader_client.py` : `get_reader_checkout()` effectue un GET ciblé avec Bearer token, validation des arguments et timeout ; tests mockés, **pas de GET réel confirmé**.
+- `connector/billsmart_payment_verification.py` : vérifie références, montant, devise, état et transitions avant toute éventuelle mise à jour.
+- Tests associés ajoutés/complétés ; revue des sources des modules `sumup_reader_client.py`, `sumup_payment_adapter.py`, `billsmart_payment_registry.py` et `billsmart_payment_link.py` à partir des sorties terminal transmises.
+
+### Validations observées
+
+- Tests de transition négatifs : **5 échecs attendus et 1 réussite**, puis correction du vérificateur.
+- Suite du vérificateur : **14 tests réussis**, puis **22 tests réussis** après ajout des cas de transition autorisée et d’idempotence.
+- Suite complète : **86 tests réussis**.
+- Dernier `git status -sb` : branche locale synchronisée avec `origin`, sans modification affichée.
+- **Aucun paiement réel ni appel API SumUp réel rapporté pendant cette session.**
+
+### Commits et état Git
+
+| Commit | Objet |
+|---|---|
+| `1f2e761` | Registre des ventes BillSmart |
+| `289763e` | Registre neutre des paiements |
+| `cad093c` | Lien vente → paiement |
+| `2c4ebf0` | Persistance et garde-fous des références checkout |
+| `32bf6fd` | Transitions contrôlées du registre |
+| `f743c99` | Extraction d’identifiants Reader et garde-fous |
+| `67c2d63` | Consultation ciblée d’un checkout Reader |
+| `b1aa0cf` | Normalisation initiale Reader |
+| `4070cd0` | Tests des statuts terminaux Reader |
+| `d47d97f` | Vérification neutre des confirmations |
+| **`7e4b4f0`** | **Contrôle des transitions dans le vérificateur** |
+
+Branche : `poc_sumup-solo_interfacage_blb-billsmart` ; `7e4b4f0` publié sur GitHub et synchronisé (résultats `git push` et `git status -sb` transmis).
+
+### Décisions maintenues
+
+- BillSmart reste indépendant de SumUp et des logiciels de caisse.
+- Le **BillSmart Transaction Simulator** demeure le livrable central ; la vérification de paiement n’est qu’un prérequis.
+- Le mode terminal seul et le poller historique restent distincts ; ne jamais inventer les lignes d’articles manquantes.
+- Aucun paiement réel sans accord explicite ; ne jamais exposer les secrets.
+- Ne pas considérer une réponse simplement conforme au schéma comme une preuve d’authenticité fournisseur.
+
+### Points ouverts et limites
+
+- Vérifier le format officiel et/ou observé des réponses GET SumUp Reader (notamment `status`, `payment_status`, `total_amount`, `checkout_id`, `client_transaction_id`).
+- Les vérifications exigent actuellement deux références fournisseur ; ne pas supposer leur présence universelle.
+- Orchestrateur de confirmation non encore implémenté, donc aucune mise à jour automatique validée de bout en bout.
+- Écritures JSON sans verrouillage concurrent ; protection contre courses, redémarrages et doubles livraisons à prévoir.
+- Ticket enrichi depuis la vente BillSmart, interface du simulateur et livraison finale BSM5/QR encore à développer.
+- Les limites de contrat/TVA et du mode terminal seul restent ouvertes.
+
+### POINT DE REPRISE — prochaine étape (3.129)
+
+- **Répertoire :** `/home/billsmart1/billsmart-sumup-connector`
+- **Branche :** `poc_sumup-solo_interfacage_blb-billsmart`
+- **Dernier commit confirmé :** `7e4b4f0`
+- **Base de tests confirmée :** 86 passés
+- **Première commande sans effet de bord :** `git status -sb` ; vérifier ensuite `git log -1 --oneline`.
+- **Inspection suivante :** `sed -n '1,240p' connector/billsmart_payment_verification.py`.
+- **Étape suivante :** écrire les tests mockés d’orchestration de confirmation et vérifier la documentation officielle Reader avant d’accepter une réponse en production. Prioriser ensuite ticket enrichi et Transaction Simulator.
+- **Interdiction de reprise implicite :** ne pas déclencher de paiement réel sans accord explicite.
+
+**Note :** cette section actualise le point de reprise historique des sections précédentes, qui reste conservé comme archive.

@@ -2,7 +2,7 @@
 
 **Projet :** Projet_BiLB_x_AEDF_et_MBOUCHE
 **Sous-projet :** Interfaçage universel BillSmart avec logiciels de caisse et systèmes de paiement
-**État documentaire :** 10 octobre 2026 — référence initiale, à maintenir
+**État documentaire :** référence initiale du 10 octobre 2026 ; revue d’alignement du 15 octobre 2026
 **Portée :** synthèse du contexte de projet et des résultats rapportés dans les sessions ; ne remplace pas une vérification du code ou des API en production.
 
 ## 1. Vision non négociable
@@ -52,10 +52,10 @@ Le simulateur est un **banc de test du contrat universel**, non une intégration
 ```text
 POS externe ── adaptateur POS ───┐
 Caisse BillSmart / Simulateur ───┼──> Transaction / vente universelle BillSmart
-                                │                   │
-Terminal seul ─ adaptateur ──────┘                   ├──> Demande de paiement neutre
+                                 │                  │
+Terminal seul ─ adaptateur ──────┘                  ├──> Demande de paiement neutre
        │                                            │                │
-       └──> Données de paiement normalisées          │        Adaptateur fournisseur
+       └──> Données de paiement normalisées         │        Adaptateur fournisseur
                                                     │                │
                                                     │          SumUp / autre
                                                     │                │
@@ -137,3 +137,48 @@ Autres modules historiques : `connector/poll_sumup.py`, `connector/billsmart_csv
 **À la fin de chaque session :** compléter `BILLSMART_JOURNAL_SESSIONS.md` avec résultats vérifiés, modifications, commits, décisions, questions ouvertes et **première commande de reprise**. Modifier ce document de référence uniquement si une décision d'architecture évolue ; documenter la raison et la date.
 
 **Confidentialité :** ne jamais consigner les secrets, `.env`, jetons, identifiants sensibles ou informations de paiement personnelles dans ces documents.
+
+## 9. Revue d’alignement et état d’avancement — 15 octobre 2026
+
+**Nature de cette mise à jour :** actualisation factuelle, **sans changement des décisions architecturales** des sections 1 à 5. Les états et limites historiques des sections 6 et 7 décrivent la situation au 10 octobre et ne doivent pas être lus comme l’état courant.
+
+### Direction confirmée
+
+- Le **BillSmart Transaction Simulator** reste le livrable prioritaire du POC : vente éditable (JSON au départ), validation, commande explicite **PAYER**, persistance de la vente avant paiement, corrélation déterministe, ticket enrichi, puis livraison BSM1 → BSM5 → QR.
+- Le cœur BillSmart demeure indépendant des logiciels de caisse et des fournisseurs de paiement ; SumUp Reader/Solo n’est que le premier adaptateur concret.
+- Préserver les trois scénarios : caisse externe, terminal seul (sans vente préalable ni articles inventés), et future caisse BillSmart.
+- Ne pas modifier rétroactivement le poller historique ni le jalon `poc-physical-solo-v1` (`de6bdf5`).
+
+### État logiciel confirmé pendant la Session 3
+
+**Dépôt :** `/home/billsmart1/billsmart-sumup-connector` ; **branche :** `poc_sumup-solo_interfacage_blb-billsmart` ; **dernier commit publié et synchronisé :** `7e4b4f0` (`Enforce BillSmart payment confirmation state transitions`). **Suite complète : 86 tests réussis.** Répertoire de travail propre au dernier `git status -sb` transmis.
+
+| Composant | État observé |
+|---|---|
+| `connector/billsmart_transaction.py` | Contrat de vente v0.1 et `build_payment_request()` neutre |
+| `connector/billsmart_sale_registry.py` | Persistance/chargement des ventes et contrôles de doublons |
+| `connector/billsmart_payment_registry.py` | Persistance des paiements, références fournisseur, transitions et idempotence |
+| `connector/billsmart_payment_link.py` | Création d’un paiement lié à une vente persistée |
+| `connector/sumup_payment_adapter.py` | Payload Reader, extraction d’identifiants et normalisation de réponses simulées |
+| `connector/sumup_reader_client.py` | Envoi au Solo et GET ciblé `get_reader_checkout()` ; GET non exécuté en réel dans cette session |
+| `connector/billsmart_payment_verification.py` | Correspondance des identifiants, montant/devise, et transitions autorisées ; tests positifs/négatifs |
+
+**Précision importante :** la corrélation dispose de briques de persistance et de vérification, **mais le parcours de confirmation authentifiée de bout en bout n’est pas encore intégré ni démontré**. Les fonctions de vérification ne constituent pas une preuve d’authenticité de la réponse fournisseur. Les tests de normalisation reposent sur des formats simulés ; vérifier le schéma réel et la documentation officielle de SumUp Reader avant tout traitement automatique de paiement.
+
+### Limites et risques toujours ouverts
+
+1. Orchestration sécurisée `load_payment → GET fournisseur authentifié → normalisation → vérification → update_payment_status`, avec tests mockés de non-modification en cas d’erreur ; vérifier la présence réelle des identifiants et les champs de statut/montant retournés par SumUp.
+2. Le vérificateur initial exige deux références fournisseur (`checkout_id` et `client_transaction_id`) : confirmer leur disponibilité réelle, et concevoir à terme une stratégie adaptée aux autres fournisseurs sans affaiblir la corrélation.
+3. Le registre JSON écrit via fichier temporaire, mais **sans verrouillage concurrent** ; traiter les courses critiques avant exploitation multiprocessus.
+4. Vente détaillée → ticket enrichi reprenant les vrais articles → BSM1/BSM5/QR : **non encore réalisé**.
+5. Interface du simulateur (édition JSON, validation, bouton PAYER, état du paiement) : **non encore réalisée**.
+6. Contrat terminal seul sans article fictif, validation arithmétique des lignes, politique TVA/arrondis, multi-devises, erreurs, reprise et absence de doubles tickets : travaux ouverts.
+
+### Priorités de développement proposées
+
+1. Vérifier les champs réels de l’API Reader et réaliser une orchestration de confirmation **testée hors réseau** ; aucun paiement réel sans autorisation explicite.
+2. Réaliser la fusion vente + paiement confirmé et le ticket enrichi, avec tests déterministes et sans altérer le poller terminal seul.
+3. Réaliser une première interface **BillSmart Transaction Simulator** minimale, puis brancher le parcours complet jusqu’à BSM5/QR.
+4. Valider ensuite les scénarios d’erreur, idempotence de livraison, concurrence et redémarrage, avant toute industrialisation.
+
+**Règle documentaire :** garder les jalons historiques inchangés ; compléter le journal à chaque session et actualiser cette section de synthèse lorsqu’un état majeur change.
